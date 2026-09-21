@@ -1,0 +1,101 @@
+# Release Readiness Gate — Atlassian Forge app
+#
+# Architecture:
+#   UI modules (issue panel + project settings) -> resolvers -> services -> Jira REST / Forge KVS
+#   Event modules (product trigger + scheduled trigger) -> same services
+#   All decision logic lives in src/core/* which is PURE (no Forge imports) and unit tested.
+
+app:
+  id: 'ari:cloud:ecosystem::app/<generated-by-forge-create>'
+  runtime:
+    name: nodejs24.x
+    memoryMB: 512
+
+modules:
+  # ---- UI: the readiness scorecard on every issue ------------------------
+  jira:issuePanel:
+    - key: readiness-panel
+      resource: panel-ui
+      render: native
+      resolver:
+        function: panel-resolver
+      title: Release Readiness
+      icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+      displayConditions:
+        projectType: software
+
+  # ---- UI: per-project rule configuration for admins ---------------------
+  jira:projectSettingsPage:
+    - key: readiness-settings
+      resource: settings-ui
+      render: native
+      resolver:
+        function: settings-resolver
+      title: Release Readiness Rules
+
+  # ---- Enforcement -------------------------------------------------------
+  # The control. A project admin attaches this to the specific transitions
+  # they want gated, in Jira's workflow editor. Because it runs inside the
+  # workflow engine it also covers the status dropdown, board drag, bulk
+  # change, Automation and the REST API - all the routes the issue panel's
+  # button cannot see.
+  jira:workflowValidator:
+    - key: readiness-gate
+      name: Release Readiness Gate
+      description: >-
+        Blocks the transition until every rule marked Blocker in this project's
+        Release Readiness Rules passes. Configure the rules under Project
+        settings, Release Readiness Rules.
+      function: readiness-gate-handler
+      projectTypes:
+        - company-managed
+        - team-managed
+
+  # ---- Events ------------------------------------------------------------
+  trigger:
+    - key: on-issue-updated
+      function: issue-updated-handler
+      events:
+        - avi:jira:updated:issue
+      filter:
+        # The app comments on issues. Without this it would receive the event
+        # its own comment generated and re-evaluate forever.
+        ignoreSelf: true
+
+  scheduledTrigger:
+    - key: nightly-compliance-sweep
+      function: sweep-handler
+      interval: day
+
+  # ---- Functions ---------------------------------------------------------
+  function:
+    - key: panel-resolver
+      handler: index.panelHandler
+    - key: settings-resolver
+      handler: index.settingsHandler
+    - key: readiness-gate-handler
+      handler: index.validateTransition
+    - key: issue-updated-handler
+      handler: index.onIssueUpdated
+    - key: sweep-handler
+      handler: index.nightlySweep
+      # The sweep walks up to 200 issues with a KVS read each, which does not
+      # reliably fit the 55s default. Valid only on scheduledTrigger/consumer
+      # functions.
+      timeoutSeconds: 300
+
+resources:
+  - key: panel-ui
+    path: src/frontend/panel.jsx
+  - key: settings-ui
+    path: src/frontend/settings.jsx
+
+permissions:
+  scopes:
+    # GET /issue/{key}, GET /issue/{key}/transitions,
+    # GET /mypermissions, POST /search/jql
+    - read:jira-work
+    # POST /issue/{key}/transitions, POST /issue/{key}/comment
+    - write:jira-work
+    # Forge KVS: per-project rule config + per-issue evaluation fingerprint
+    - storage:app
