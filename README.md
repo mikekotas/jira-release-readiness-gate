@@ -163,6 +163,21 @@ Node.js 24 · Jest
 | OAuth scopes requested | 3 — `read:jira-work`, `write:jira-work`, `storage:app` |
 | External network egress | none |
 
+## Reading order
+
+Depending on why you're here:
+
+- **Deciding whether I can build this kind of thing** → [docs/engineering-notes.md](docs/engineering-notes.md).
+  The judgement calls, the trade-offs, and the two bugs that were worth writing down.
+- **Evaluating the design** → [docs/architecture.md](docs/architecture.md).
+- **Understanding the product** → [docs/how-it-works.md](docs/how-it-works.md).
+- **Reading code** → [samples/](samples/).
+
 ## Licence
 
 MIT — see [LICENSE](LICENSE).
+
+---
+
+Built by Michail Kotantakis. Available for Atlassian Forge, Jira Cloud and Google Workspace
+integration work.
